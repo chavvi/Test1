@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
+
+xmlns:db="http://www.mulesoft.org/schema/mule/db"
+
+xmlns:core="http://www.mulesoft.org/schema/mule/core"
+
+xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:cxf="http://www.mulesoft.org/schema/mule/cxf"
+
+xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+
+xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+
+xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+
+xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+
+http://www.mulesoft.org/schema/mule/cxf http://www.mulesoft.org/schema/mule/cxf/current/mule-cxf.xsd
+
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd">
+
+  <ee:object-store-caching-strategy
+
+name="CacheStrategy" doc:name="Caching Strategy" keyGenerationExpression="#[flowVars.id]">  
+
+<in-memory-store name="inMemooryStore" maxEntries="200" entryTTL="20000" expirationInterval="20000"/> 
+
+  </ee:object-store-caching-strategy>
+
+<db:generic-config name="Generic_Database_Configuration"
+
+url="jdbc:hsqldb:hsql://localhost:9001" driverClassName="org.hsqldb.jdbcDriver"
+
+doc:name="Generic Database Configuration" />
+
+<http:listener-config name="HTTP_Listener_Configuration"
+
+host="localhost" port="8081" basePath="/cache" doc:name="HTTP Listener Configuration" />
+
+<flow name="cacheFlow">
+
+<http:listener config-ref="HTTP_Listener_Configuration"
+
+path="/cache" doc:name="HTTP" />
+
+<byte-array-to-string-transformer
+
+doc:name="Byte Array to String" />
+
+        <set-variable variableName="id" value="#[message.inboundProperties.'http.query.params'.id]" doc:name="Variable"/>
+
+        <logger level="INFO" message="#[flowVars.id]" doc:name="Logger"/>
+
+<ee:cache doc:name="Cache" cachingStrategy-ref="CacheStrategy">
+
+<logger level="INFO" message="Before calling the database connector" doc:name="Logger" />
+
+            <db:select config-ref="Generic_Database_Configuration"
+
+doc:name="Save to fgwy_user_role">
+
+<db:dynamic-query><![CDATA[select id,name from employee where id='#[flowVars.id]']]></db:dynamic-query>
+
+</db:select>       
+
+<logger level="INFO" message="After calling the database connector" doc:name="Logger" />
+
+</ee:cache>
+
+<dw:transform-message doc:name="Transform Message">
+
+<dw:set-payload><![CDATA[%dw 1.0
+
+%output application/json
+
+---
+
+payload map ((payload01 , indexOfPayload01) -> {
+
+id: payload01.id,
+
+name: payload01.name
+
+})]]></dw:set-payload>
+
+</dw:transform-message> 
+
+<logger level="INFO" message="#[payload]" doc:name="Logger" />
+
+</flow>
+
+</mule>
